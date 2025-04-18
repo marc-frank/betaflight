@@ -155,9 +155,22 @@ static int16_t lookupThrottleRC[THROTTLE_LOOKUP_LENGTH];    // lookup table for 
 
 static int16_t rcLookupThrottle(int32_t tmp)
 {
-    const int32_t tmp2 = tmp / 100;
-    // [0;1000] -> expo -> [MINTHROTTLE;MAXTHROTTLE]
-    return lookupThrottleRC[tmp2] + (tmp - tmp2 * 100) * (lookupThrottleRC[tmp2 + 1] - lookupThrottleRC[tmp2]) / 100;
+    // tmp is 0…PWM_RANGE
+    // Spread that range evenly over THROTTLE_LOOKUP_LENGTH-1 steps
+    const int32_t steps  = THROTTLE_LOOKUP_LENGTH - 1;
+    const int32_t scaled = tmp * steps;                // 0…PWM_RANGE*steps
+    const int32_t idx    = scaled / PWM_RANGE;         // 0…steps
+    const int32_t rem    = scaled % PWM_RANGE;         // for interpolation
+
+    // If index goes to the final slot, just return it
+    if (idx >= steps) {
+        return lookupThrottleRC[steps];
+    }
+
+    // Otherwise linearly interpolate between lookupThrottleRC[idx] and [idx+1]
+    const int16_t low  = lookupThrottleRC[idx];
+    const int16_t high = lookupThrottleRC[idx + 1];
+    return low + (int16_t)((rem * (high - low)) / PWM_RANGE);
 }
 
 #define SETPOINT_RATE_LIMIT_MIN -1998.0f
